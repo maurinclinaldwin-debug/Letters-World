@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html {
+  height: 100%;
+  overflow-x: hidden;
+  background-color: #101217;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  background-color: #101217;
+}
+
+#root {
+  min-height: 100%;
+  background-color: #101217;
+}
+
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+/* Restrained, minimal cinematic scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(223, 156, 83, 0.4);
+}
+
+.font-serif {
+  font-family: var(--font-serif);
+}
+
+.font-sans {
+  font-family: var(--font-sans);
+}
+
+/* Subtle organic grain for photographic realism */
+.film-grain {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+/* Atmospheric mist and sunbeam animations */
+@keyframes ambientDrift {
+  0% {
+    transform: translateX(-4%) translateY(0%);
+  }
+  50% {
+    transform: translateX(4%) translateY(-2%);
+  }
+  100% {
+    transform: translateX(-4%) translateY(0%);
+  }
+}
+
+@keyframes sunbeamShimmer {
+  0%, 100% {
+    opacity: 0.28;
+    transform: rotate(-12deg) scaleY(1);
+  }
+  50% {
+    opacity: 0.44;
+    transform: rotate(-10deg) scaleY(1.08);
+  }
+}
+
+@keyframes celestialBreathe {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.04);
+  }
+}
+
+.animate-ambient-drift {
+  animation: ambientDrift 28s ease-in-out infinite;
+}
+
+.animate-ambient-drift-reverse {
+  animation: ambientDrift 34s ease-in-out infinite reverse;
+}
+
+.animate-sunbeam-shimmer {
+  animation: sunbeamShimmer 14s ease-in-out infinite;
+}
+
+.animate-celestial-breathe {
+  animation: celestialBreathe 8s ease-in-out infinite;
+}
+
