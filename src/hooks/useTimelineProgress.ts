@@ -24,14 +24,14 @@ export function useTimelineProgress(options: UseTimelineProgressOptions = {}) {
   useEffect(() => {
     if (!enabled) return;
 
-    // 1. Initialize Lenis for smooth, weighted, organic scrolling
+    // 1. Initialize Lenis for buttery-smooth, responsive organic scrolling without drag lag
     const lenis = new Lenis({
-      duration: 1.6,
+      duration: 1.0,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       orientation: 'vertical',
       gestureOrientation: 'vertical',
       smoothWheel: true,
-      wheelMultiplier: 0.85,
+      wheelMultiplier: 1.0,
       touchMultiplier: 1.5,
     });
 
@@ -52,17 +52,25 @@ export function useTimelineProgress(options: UseTimelineProgressOptions = {}) {
     // 3. Create ScrollTrigger instance attached to timeline track
     const scrollTrack = document.getElementById('timeline-scroll-track') || document.body;
 
+    let rafId: number | null = null;
+    let lastProgress = -1;
     const st = ScrollTrigger.create({
       trigger: scrollTrack,
       start: 'top top',
       end: 'bottom bottom',
-      scrub: 0.6,
+      scrub: true,
       onUpdate: (self) => {
         const p = Math.max(0, Math.min(1, self.progress));
-        setProgress(p);
-        if (onProgressChangeRef.current) {
-          onProgressChangeRef.current(p);
-        }
+        if (Math.abs(p - lastProgress) < 0.0004) return;
+        lastProgress = p;
+
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          setProgress(p);
+          if (onProgressChangeRef.current) {
+            onProgressChangeRef.current(p);
+          }
+        });
       },
     });
 

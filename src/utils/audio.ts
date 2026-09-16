@@ -89,7 +89,34 @@ class WindAudioEngine {
   }
 
   public boostForDeparture() {
-    if (!this.ctx || !this.isPlaying || !this.filter || !this.gainNode) return;
+    if (!this.ctx) this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+
+    // Harmonic celestial chime & rising shimmer
+    try {
+      const now = this.ctx.currentTime;
+      const chord = [261.63, 329.63, 392.00, 523.25, 659.25]; // C major celestial sweep
+      chord.forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 1.8);
+        gain.gain.setValueAtTime(0.001, now + idx * 0.12);
+        gain.gain.linearRampToValueAtTime(0.04, now + idx * 0.12 + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.0);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.12);
+        osc.stop(now + 2.2);
+      });
+    } catch {
+      // ignore
+    }
+
+    if (!this.isPlaying || !this.filter || !this.gainNode) return;
     const now = this.ctx.currentTime;
     this.filter.frequency.setTargetAtTime(800, now, 0.8);
     this.gainNode.gain.setTargetAtTime(0.6, now, 0.5);
@@ -120,3 +147,26 @@ class WindAudioEngine {
 }
 
 export const windAudio = new WindAudioEngine();
+
+/**
+ * Primes and wakes up mobile device audio subsystem on first touch/interaction.
+ * Enables unmuted media playback in iOS Safari and Android Chrome.
+ */
+export function unlockMobileAudioHardware() {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    }
+  } catch {
+    // ignore
+  }
+}

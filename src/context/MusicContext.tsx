@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { MUSIC_PLAYLIST } from '../data/timeline.ts';
 import { MusicTrack } from '../types.ts';
+import { unlockMobileAudioHardware } from '../utils/audio.ts';
 
 interface MusicChannelState {
   track: MusicTrack | null;
@@ -150,19 +151,31 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, 300);
   }, [activeChannel, sendCommand, setChannelVolume]);
 
-  // First interaction trigger
+  // First interaction trigger with mobile audio hardware priming & retry cascade
   const triggerFirstInteraction = useCallback(() => {
-    if (hasInteracted) return;
     setHasInteracted(true);
     setIsPlaying(true);
 
-    // Start active channel smoothly fading in from 0 to 100
-    setChannelVolume(activeChannel, 0);
+    // 1. Prime Mobile Audio Hardware
+    unlockMobileAudioHardware();
+
+    // 2. Immediate playback activation
     sendCommand(activeChannel, 'unMute');
+    sendCommand(activeChannel, 'setVolume', [100]);
     sendCommand(activeChannel, 'playVideo');
 
+    // 3. Cascading retries for mobile network/iframe loading latency
+    const retryDelays = [150, 400, 800, 1500];
+    retryDelays.forEach((delay) => {
+      setTimeout(() => {
+        sendCommand(activeChannel, 'unMute');
+        sendCommand(activeChannel, 'playVideo');
+      }, delay);
+    });
+
+    // 4. Smooth volume ramp
     let step = 0;
-    const steps = 15;
+    const steps = 12;
     const timer = window.setInterval(() => {
       step++;
       const vol = Math.round((step / steps) * 100);
@@ -171,9 +184,27 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         clearInterval(timer);
       }
     }, 100);
-  }, [hasInteracted, activeChannel, sendCommand, setChannelVolume]);
+  }, [activeChannel, sendCommand, setChannelVolume]);
 
-  // Listen for initial user interaction (click, scroll, touch, keydown)
+  // Attempt instant autoplay on mount (runs immediately for mobile & desktop)
+  useEffect(() => {
+    const timer1 = setTimeout(() => {
+      sendCommand('A', 'unMute');
+      sendCommand('A', 'playVideo');
+    }, 500);
+
+    const timer2 = setTimeout(() => {
+      sendCommand('A', 'unMute');
+      sendCommand('A', 'playVideo');
+    }, 1200);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, [sendCommand]);
+
+  // Listen for initial user interaction across all standard mobile and desktop touch points
   useEffect(() => {
     if (hasInteracted) return;
 
@@ -181,21 +212,47 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       triggerFirstInteraction();
     };
 
-    window.addEventListener('click', onUserInteraction, { once: true, passive: true });
-    window.addEventListener('touchstart', onUserInteraction, { once: true, passive: true });
-    window.addEventListener('scroll', onUserInteraction, { once: true, passive: true });
-    window.addEventListener('keydown', onUserInteraction, { once: true, passive: true });
+    const eventOptions = { passive: true };
+    const events = ['touchstart', 'touchend', 'pointerdown', 'pointerup', 'click', 'scroll', 'keydown'];
+
+    events.forEach((evt) => {
+      window.addEventListener(evt, onUserInteraction, eventOptions);
+      document.addEventListener(evt, onUserInteraction, eventOptions);
+    });
 
     return () => {
-      window.removeEventListener('click', onUserInteraction);
-      window.removeEventListener('touchstart', onUserInteraction);
-      window.removeEventListener('scroll', onUserInteraction);
-      window.removeEventListener('keydown', onUserInteraction);
+      events.forEach((evt) => {
+        window.removeEventListener(evt, onUserInteraction);
+        document.removeEventListener(evt, onUserInteraction);
+      });
     };
   }, [hasInteracted, triggerFirstInteraction]);
 
+  // Listen for postMessage from YouTube iframe to detect playback status
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (data && (data.event === 'onStateChange' || data.info?.playerState !== undefined)) {
+          const state = data.info?.playerState ?? data.info;
+          // YT.PlayerState.PLAYING is 1
+          if (state === 1) {
+            setIsPlaying(true);
+            setHasInteracted(true);
+          }
+        }
+      } catch {
+        // ignore non-JSON messages from other extensions or iframes
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   // Toggle play/pause
   const togglePlay = useCallback(() => {
+    unlockMobileAudioHardware();
     if (!hasInteracted) {
       triggerFirstInteraction();
       return;
@@ -205,6 +262,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       sendCommand(activeChannel, 'pauseVideo');
       setIsPlaying(false);
     } else {
+      sendCommand(activeChannel, 'unMute');
       sendCommand(activeChannel, 'playVideo');
       setIsPlaying(true);
     }
@@ -212,6 +270,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Toggle mute
   const toggleMute = useCallback(() => {
+    unlockMobileAudioHardware();
     if (isMuted) {
       sendCommand('A', 'unMute');
       sendCommand('B', 'unMute');
@@ -225,6 +284,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Play next random track with crossfade
   const playNextRandomTrack = useCallback(() => {
+    unlockMobileAudioHardware();
     if (!hasInteracted) {
       triggerFirstInteraction();
       return;
@@ -241,6 +301,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Select track by index with crossfade
   const selectTrack = useCallback((index: number) => {
+    unlockMobileAudioHardware();
     if (!hasInteracted) {
       triggerFirstInteraction();
     }
@@ -251,6 +312,10 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [hasInteracted, currentTrackIndex, isPlaying, triggerFirstInteraction, executeCrossfade]);
 
   const currentTrack = MUSIC_PLAYLIST[currentTrackIndex] || MUSIC_PLAYLIST[0];
+
+  const originParam = typeof window !== 'undefined' && window.location.origin
+    ? `&origin=${encodeURIComponent(window.location.origin)}`
+    : '';
 
   return (
     <MusicContext.Provider
@@ -272,7 +337,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         triggerFirstInteraction,
       }}
     >
-      {/* Centralized Dual-Channel YouTube Audio Players for Seamless Crossfading */}
+      {/* Centralized Dual-Channel YouTube Audio Players for Seamless Crossfading & Mobile Autoplay */}
       <div className="sr-only opacity-0 pointer-events-none w-0 h-0 overflow-hidden" aria-hidden="true">
         {channelA.track && (
           <iframe
@@ -283,11 +348,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             key={`channel-a-${channelA.track.id}`}
             width="200"
             height="200"
-            src={`${channelA.track.embedUrl}?enablejsapi=1&autoplay=${
-              hasInteracted && activeChannel === 'A' ? '1' : '0'
-            }&loop=1&playlist=${channelA.track.id}&controls=0&fs=0&modestbranding=1&rel=0&iv_load_policy=3`}
+            src={`${channelA.track.embedUrl}?enablejsapi=1&autoplay=1&playsinline=1&loop=1&playlist=${channelA.track.id}&controls=0&fs=0&modestbranding=1&rel=0&iv_load_policy=3${originParam}`}
             title="Letters World Soundtrack Channel A"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allow="autoplay *; encrypted-media *; accelerometer; gyroscope; picture-in-picture"
             referrerPolicy="strict-origin-when-cross-origin"
             tabIndex={-1}
           />
@@ -301,11 +364,9 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             key={`channel-b-${channelB.track.id}`}
             width="200"
             height="200"
-            src={`${channelB.track.embedUrl}?enablejsapi=1&autoplay=${
-              hasInteracted && activeChannel === 'B' ? '1' : '0'
-            }&loop=1&playlist=${channelB.track.id}&controls=0&fs=0&modestbranding=1&rel=0&iv_load_policy=3`}
+            src={`${channelB.track.embedUrl}?enablejsapi=1&autoplay=1&playsinline=1&loop=1&playlist=${channelB.track.id}&controls=0&fs=0&modestbranding=1&rel=0&iv_load_policy=3${originParam}`}
             title="Letters World Soundtrack Channel B"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allow="autoplay *; encrypted-media *; accelerometer; gyroscope; picture-in-picture"
             referrerPolicy="strict-origin-when-cross-origin"
             tabIndex={-1}
           />

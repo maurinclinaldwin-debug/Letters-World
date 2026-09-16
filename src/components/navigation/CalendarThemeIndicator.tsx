@@ -122,6 +122,22 @@ export const CalendarThemeIndicator: React.FC<CalendarThemeIndicatorProps> = ({
                 {theme.particleStyle.replace('_', ' ')}
               </span>
             </div>
+            <div className="flex items-center justify-between text-[#baa9bc] pt-0.5 border-t border-white/[0.04]">
+              <span className="font-sans uppercase tracking-widest text-[9px]">Dynamic Weather</span>
+              <span className="text-[#f7f2ea] text-[10px] font-mono truncate max-w-[140px]" title="Wisps of fog & drifting leaves transitioning by altitude & time">
+                {theme.isAugust22
+                  ? 'Stardust Mist & Gold Leaves'
+                  : theme.phase === 'dawn'
+                  ? 'Valley Fog & Dew Petals'
+                  : theme.phase === 'golden_hour'
+                  ? 'Golden Haze & Amber Leaves'
+                  : theme.phase === 'dusk'
+                  ? 'Twilight Mist & Soft Leaves'
+                  : theme.phase === 'midnight'
+                  ? 'Night Mist & Silver Leaves'
+                  : 'Sunlit Haze & Forest Leaves'}
+              </span>
+            </div>
           </div>
 
           {/* Celestial Phase Preview Options */}

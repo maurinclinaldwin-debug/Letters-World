@@ -40,36 +40,40 @@ export const LandscapeTransition: React.FC<LandscapeTransitionProps> = ({
       id="landscape-stage-viewport"
       className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none"
     >
-      {/* Stacked Photographic Background Layers */}
+      {/* Stacked Photographic Background Layers - Only render the active 1 or 2 transitioning layers */}
       {backgrounds.map((bg, index) => {
         let opacity = 0;
         if (index === indexA) {
           opacity = indexA === indexB ? 1 : 1 - easeFraction;
         } else if (index === indexB) {
           opacity = easeFraction;
+        } else {
+          return null; // Don't keep non-active images in GPU texture memory
         }
 
-        // Only render active or dissolving layers to maintain 60fps performance
         const isVisible = opacity > 0.005;
+        if (!isVisible) return null;
 
         return (
           <div
             key={bg.id}
             id={`landscape-bg-layer-${bg.id}`}
-            className="absolute inset-0 will-change-transform"
+            className="absolute inset-0"
             style={{
-              opacity: isVisible ? opacity : 0,
-              visibility: isVisible ? 'visible' : 'hidden',
-              transform: `scale(${focusScale}) translate3d(var(--pan-x, 0px), var(--pan-y, 0px), 0)`,
+              opacity,
+              transform: `scale(${focusScale * 1.04}) translate3d(var(--pan-far-x, var(--pan-x, 0px)), var(--pan-far-y, var(--pan-y, 0px)), 0) rotateX(var(--pan-rot-x, 0deg)) rotateY(var(--pan-rot-y, 0deg))`,
+              transformOrigin: 'center center',
               filter: blurFilter,
-              transition: 'opacity 80ms linear',
+              willChange: isFocused || isOpeningLetter ? 'filter, transform' : 'opacity, transform',
+              backfaceVisibility: 'hidden',
             }}
           >
             <img
               src={bg.url}
               alt={bg.name}
               referrerPolicy="no-referrer"
-              className="w-full h-full object-cover object-center"
+              className="w-full h-full object-cover object-center pointer-events-none"
+              loading="eager"
             />
           </div>
         );

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { TIMELINE_ENTRIES, BACKGROUND_COLLECTION } from '../../data/timeline.ts';
 import { TimelineEntry, LandscapeBackground } from '../../types.ts';
 import { useTimelineProgress } from '../../hooks/useTimelineProgress.ts';
@@ -9,11 +9,12 @@ import { CinematicIntro } from './CinematicIntro.tsx';
 import { Timeline } from './Timeline.tsx';
 import { LetterModal } from './LetterModal.tsx';
 import { UniverseBackButton } from '../navigation/UniverseBackButton.tsx';
+import { UniversePortalReturn } from '../navigation/UniversePortalReturn.tsx';
 import { BackgroundSwitcher } from '../navigation/BackgroundSwitcher.tsx';
 import { CalendarThemeIndicator } from '../navigation/CalendarThemeIndicator.tsx';
 import { GlobalMusicPlayer } from '../audio/GlobalMusicPlayer.tsx';
 import { LetterTransition } from '../transitions/LetterTransition.tsx';
-import { ATING_UNIVERSE_URL } from '../../utils/navigation.ts';
+import { ATING_UNIVERSE_URL, getSafeUniverseUrl, replaceParentUrl } from '../../utils/navigation.ts';
 
 export const LettersWorld: React.FC = () => {
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
@@ -46,6 +47,8 @@ export const LettersWorld: React.FC = () => {
 
   // Scroll Progress (0.0 to 1.0) synchronized with GSAP ScrollTrigger & Lenis
   const { progress, scrollToProgress } = useTimelineProgress();
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
 
   // Active scene calculation from scroll progress: every scroll changes the landscape
   const numBg = backgroundList.length;
@@ -54,32 +57,39 @@ export const LettersWorld: React.FC = () => {
   const currentBackground = backgroundList[activeBgIndex] || backgroundList[0];
 
   // Manual background selection & shuffle: maps the chosen scene into the current scroll position
-  const handleSelectBackground = useCallback(
-    (newBg: LandscapeBackground) => {
-      setBackgroundList((prev) => {
-        const list = [...prev];
-        const currentIndex = Math.min(list.length - 1, Math.round(progress * (list.length - 1)));
-        const existingIdx = list.findIndex((b) => b.id === newBg.id);
-        if (existingIdx !== -1 && existingIdx !== currentIndex) {
-          const temp = list[currentIndex];
-          list[currentIndex] = list[existingIdx];
-          list[existingIdx] = temp;
-        }
-        return list;
-      });
-    },
-    [progress]
-  );
+  const handleSelectBackground = useCallback((newBg: LandscapeBackground) => {
+    setBackgroundList((prev) => {
+      const list = [...prev];
+      const currentProg = progressRef.current;
+      const currentIndex = Math.min(list.length - 1, Math.round(currentProg * (list.length - 1)));
+      const existingIdx = list.findIndex((b) => b.id === newBg.id);
+      if (existingIdx !== -1 && existingIdx !== currentIndex) {
+        const temp = list[currentIndex];
+        list[currentIndex] = list[existingIdx];
+        list[existingIdx] = temp;
+      }
+      return list;
+    });
+  }, []);
 
   const handleRandomizeBackground = useCallback(() => {
-    const currentIndex = Math.min(backgroundList.length - 1, Math.round(progress * (backgroundList.length - 1)));
-    const currentId = backgroundList[currentIndex]?.id;
-    const available = BACKGROUND_COLLECTION.filter((b) => b.id !== currentId);
-    const randomPick = available[Math.floor(Math.random() * available.length)];
-    if (randomPick) {
-      handleSelectBackground(randomPick);
-    }
-  }, [backgroundList, handleSelectBackground, progress]);
+    setBackgroundList((prev) => {
+      const currentProg = progressRef.current;
+      const currentIndex = Math.min(prev.length - 1, Math.round(currentProg * (prev.length - 1)));
+      const currentId = prev[currentIndex]?.id;
+      const available = BACKGROUND_COLLECTION.filter((b) => b.id !== currentId);
+      const randomPick = available[Math.floor(Math.random() * available.length)];
+      if (!randomPick) return prev;
+      const list = [...prev];
+      const existingIdx = list.findIndex((b) => b.id === randomPick.id);
+      if (existingIdx !== -1 && existingIdx !== currentIndex) {
+        const temp = list[currentIndex];
+        list[currentIndex] = list[existingIdx];
+        list[existingIdx] = temp;
+      }
+      return list;
+    });
+  }, []);
 
   // Cinematic Departure Transition
   const { isTransitioning, transitionPhase, transitionTarget, startTransition } = useCinematicTransition();
@@ -113,10 +123,13 @@ export const LettersWorld: React.FC = () => {
 
   // Handle returning to Ating Universe through parent with smooth cinematic transition
   const handleReturnToUniverse = useCallback(() => {
+    const safeUrl = getSafeUniverseUrl(ATING_UNIVERSE_URL);
+    // Replace parent URL immediately during the user interaction
+    replaceParentUrl(safeUrl);
     startTransition(
-      ATING_UNIVERSE_URL,
+      safeUrl,
       'Ating Universe',
-      'Redirecting through parent...'
+      'Returning to Cosmos • https://ating-universe.vercel.app/'
     );
   }, [startTransition]);
 
@@ -164,6 +177,12 @@ export const LettersWorld: React.FC = () => {
           </div>
         </header>
 
+        {/* Dedicated Floating Cosmic Portal Return to Ating Universe */}
+        <UniversePortalReturn
+          onNavigate={handleReturnToUniverse}
+          isTransitioning={isTransitioning}
+        />
+
         {/* Cinematic Intro Sequence with Frosted Glass Panel */}
         <CinematicIntro
           progress={progress}
@@ -177,6 +196,7 @@ export const LettersWorld: React.FC = () => {
           progress={progress}
           focusedEntryId={selectedEntryId}
           onSelectEntry={handleSelectEntry}
+          onReturnToUniverse={handleReturnToUniverse}
         />
 
         {/* Interactive Letter Modal: Opens upon clicking any circle on the roadmap */}
@@ -186,6 +206,7 @@ export const LettersWorld: React.FC = () => {
           isOpen={isLetterModalOpen}
           onClose={handleCloseModal}
           onNavigateToUrl={handleModalNavigateToUrl}
+          onReturnToUniverse={handleReturnToUniverse}
         />
 
         {/* Glassy Portal Departure Transition */}

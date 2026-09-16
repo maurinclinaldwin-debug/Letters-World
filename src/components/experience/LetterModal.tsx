@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Lock, BookOpen, ExternalLink, Heart, Feather } from 'lucide-react';
+import { X, Sparkles, Lock, BookOpen, ExternalLink, Heart, Feather, Compass } from 'lucide-react';
 import { TimelineEntry } from '../../types.ts';
 
 interface LetterModalProps {
@@ -7,6 +7,7 @@ interface LetterModalProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigateToUrl?: (url: string, title: string) => void;
+  onReturnToUniverse?: () => void;
 }
 
 export const LetterModal: React.FC<LetterModalProps> = ({
@@ -14,6 +15,7 @@ export const LetterModal: React.FC<LetterModalProps> = ({
   isOpen,
   onClose,
   onNavigateToUrl,
+  onReturnToUniverse,
 }) => {
   const [activePerspectiveIndex, setActivePerspectiveIndex] = useState(0);
 
@@ -198,10 +200,28 @@ export const LetterModal: React.FC<LetterModalProps> = ({
 
         {/* Footer Actions */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 sm:px-8 py-4 sm:py-5 border-t border-white/[0.08] bg-black/40 shrink-0">
-          <div className="text-[11px] font-sans text-[#baa9bc] tracking-wider text-center sm:text-left">
-            {isUpcoming
-              ? 'Return on August 22, 2027 to unlock'
-              : 'Discovered in Ating Universe • Letters World'}
+          <div className="flex items-center gap-2 text-[11px] font-sans text-[#baa9bc] tracking-wider text-center sm:text-left">
+            <span>
+              {isUpcoming
+                ? 'Return on August 22, 2027 to unlock'
+                : 'Discovered in Ating Universe • Letters World'}
+            </span>
+            {onReturnToUniverse && (
+              <>
+                <span className="hidden sm:inline opacity-30">•</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onReturnToUniverse();
+                  }}
+                  className="hidden sm:inline-flex items-center gap-1 text-[#df9c53] hover:text-[#fff4e0] underline underline-offset-4 decoration-[#df9c53]/40 hover:decoration-[#df9c53] transition-colors cursor-pointer"
+                >
+                  <Compass className="w-3 h-3 text-[#df9c53]" />
+                  <span>Portal to Universe</span>
+                </button>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto">

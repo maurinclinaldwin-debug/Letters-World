@@ -24,7 +24,7 @@ export const LandscapeStage: React.FC<LandscapeStageProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Subtle hardware-accelerated natural camera parallax without React re-renders
+  // Subtle hardware-accelerated natural camera parallax across multi-depth mountain planes
   useEffect(() => {
     let animId: number;
     let targetX = 0;
@@ -33,34 +33,98 @@ export const LandscapeStage: React.FC<LandscapeStageProps> = ({
     let currentY = 0;
     let isMoving = false;
 
-    const onMouseMove = (e: MouseEvent) => {
+    const onPointerMove = (e: PointerEvent | MouseEvent) => {
       targetX = (e.clientX / window.innerWidth - 0.5) * 2;
       targetY = (e.clientY / window.innerHeight - 0.5) * 2;
       isMoving = true;
     };
 
-    const updateParallax = () => {
-      if (isMoving || Math.abs(targetX - currentX) > 0.001 || Math.abs(targetY - currentY) > 0.001) {
-        currentX += (targetX - currentX) * 0.04;
-        currentY += (targetY - currentY) * 0.04;
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches && e.touches[0]) {
+        const touch = e.touches[0];
+        targetX = (touch.clientX / window.innerWidth - 0.5) * 2;
+        targetY = (touch.clientY / window.innerHeight - 0.5) * 2;
+        isMoving = true;
+      }
+    };
+
+    let lastTime = 0;
+    const FRAME_INTERVAL = 1000 / 60; // 16.6ms cap for buttery 60fps
+
+    const updateParallax = (now: number) => {
+      animId = requestAnimationFrame(updateParallax);
+
+      const elapsed = now - lastTime;
+      if (elapsed < FRAME_INTERVAL) return;
+      lastTime = now - (elapsed % FRAME_INTERVAL);
+
+      // Subtle atmospheric idle drift simulating mountain wind on steady camera
+      const idleWaveX = Math.sin(now * 0.0007) * 0.06;
+      const idleWaveY = Math.cos(now * 0.0005) * 0.04;
+      const effectiveTargetX = targetX + idleWaveX;
+      const effectiveTargetY = targetY + idleWaveY;
+
+      if (isMoving || Math.abs(effectiveTargetX - currentX) > 0.0005 || Math.abs(effectiveTargetY - currentY) > 0.0005) {
+        currentX += (effectiveTargetX - currentX) * 0.05;
+        currentY += (effectiveTargetY - currentY) * 0.05;
+
         if (containerRef.current) {
-          const panX = (currentX * -18).toFixed(2);
-          const panY = (currentY * -12).toFixed(2);
-          containerRef.current.style.setProperty('--pan-x', `${panX}px`);
-          containerRef.current.style.setProperty('--pan-y', `${panY}px`);
+          // Multi-depth camera parallax offsets
+          const panSkyX = (currentX * -6).toFixed(2);
+          const panSkyY = (currentY * -4).toFixed(2);
+
+          const panFarX = (currentX * -14).toFixed(2);
+          const panFarY = (currentY * -9).toFixed(2);
+
+          const panMidX = (currentX * -26).toFixed(2);
+          const panMidY = (currentY * -16).toFixed(2);
+
+          const panNearX = (currentX * -44).toFixed(2);
+          const panNearY = (currentY * -24).toFixed(2);
+
+          const panRotX = (currentY * 1.5).toFixed(2);
+          const panRotY = (currentX * -2.0).toFixed(2);
+
+          const mouseNormX = (((currentX + 1) / 2) * 100).toFixed(1);
+          const mouseNormY = (((currentY + 1) / 2) * 100).toFixed(1);
+
+          const el = containerRef.current;
+          el.style.setProperty('--pan-sky-x', `${panSkyX}px`);
+          el.style.setProperty('--pan-sky-y', `${panSkyY}px`);
+
+          el.style.setProperty('--pan-far-x', `${panFarX}px`);
+          el.style.setProperty('--pan-far-y', `${panFarY}px`);
+
+          el.style.setProperty('--pan-mid-x', `${panMidX}px`);
+          el.style.setProperty('--pan-mid-y', `${panMidY}px`);
+
+          el.style.setProperty('--pan-near-x', `${panNearX}px`);
+          el.style.setProperty('--pan-near-y', `${panNearY}px`);
+
+          el.style.setProperty('--pan-rot-x', `${panRotX}deg`);
+          el.style.setProperty('--pan-rot-y', `${panRotY}deg`);
+
+          el.style.setProperty('--mouse-norm-x', `${mouseNormX}%`);
+          el.style.setProperty('--mouse-norm-y', `${mouseNormY}%`);
+
+          // Backward compatibility
+          el.style.setProperty('--pan-x', `${panMidX}px`);
+          el.style.setProperty('--pan-y', `${panMidY}px`);
         }
-        if (Math.abs(targetX - currentX) < 0.001 && Math.abs(targetY - currentY) < 0.001) {
+
+        if (Math.abs(effectiveTargetX - currentX) < 0.0005 && Math.abs(effectiveTargetY - currentY) < 0.0005) {
           isMoving = false;
         }
       }
-      animId = requestAnimationFrame(updateParallax);
     };
 
-    window.addEventListener('mousemove', onMouseMove, { passive: true });
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
     animId = requestAnimationFrame(updateParallax);
 
     return () => {
-      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('touchmove', onTouchMove);
       cancelAnimationFrame(animId);
     };
   }, []);
@@ -73,7 +137,19 @@ export const LandscapeStage: React.FC<LandscapeStageProps> = ({
       ref={containerRef}
       className="fixed inset-0 overflow-hidden select-none"
       style={{
-        // Default CSS variables for parallax offset
+        // Default CSS variables for multi-depth parallax offsets
+        ['--pan-sky-x' as string]: '0px',
+        ['--pan-sky-y' as string]: '0px',
+        ['--pan-far-x' as string]: '0px',
+        ['--pan-far-y' as string]: '0px',
+        ['--pan-mid-x' as string]: '0px',
+        ['--pan-mid-y' as string]: '0px',
+        ['--pan-near-x' as string]: '0px',
+        ['--pan-near-y' as string]: '0px',
+        ['--pan-rot-x' as string]: '0deg',
+        ['--pan-rot-y' as string]: '0deg',
+        ['--mouse-norm-x' as string]: '50%',
+        ['--mouse-norm-y' as string]: '50%',
         ['--pan-x' as string]: '0px',
         ['--pan-y' as string]: '0px',
       }}
@@ -94,3 +170,4 @@ export const LandscapeStage: React.FC<LandscapeStageProps> = ({
     </div>
   );
 };
+

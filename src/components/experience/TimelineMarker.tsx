@@ -34,7 +34,7 @@ export const TimelineMarker: React.FC<TimelineMarkerProps> = ({
 
   return (
     <div
-      className="absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 transition-all duration-300 ease-out select-none"
+      className="absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 select-none will-change-transform"
       style={{
         left: `${entry.pathPercent.x}%`,
         top: `${entry.pathPercent.y}%`,

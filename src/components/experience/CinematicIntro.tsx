@@ -60,7 +60,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({
       {/* 2. Prologue Typography with Glassy Translucent Vibes */}
       <div
         id="intro-prologue-overlay"
-        className="fixed inset-0 z-20 pointer-events-none flex flex-col justify-between items-center px-4 pt-16 pb-6 sm:px-12 sm:pt-24 sm:pb-12 transition-all duration-700 ease-out"
+        className="fixed inset-0 z-20 pointer-events-none flex flex-col justify-between items-center px-4 pt-16 pb-6 sm:px-12 sm:pt-24 sm:pb-12 will-change-transform"
         style={{
           opacity: stage === 'title' || stage === 'ready' ? scrollFade : 0,
           transform: `translateY(${progress * -40}px)`,

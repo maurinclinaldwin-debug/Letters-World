@@ -93,7 +93,7 @@ export const LetterTransition: React.FC<LetterTransitionProps> = ({
         <div className="flex items-center justify-center gap-1.5 mb-1.5 sm:mb-2 text-[#e5aa6d]">
           <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" style={{ animationDuration: '6s' }} />
           <span className="font-sans text-[9px] sm:text-[10px] tracking-[0.22em] sm:tracking-[0.25em] uppercase font-semibold text-[#baa9bc]">
-            {isUniverse ? 'Starlight Departure' : 'Atmospheric Crossing'}
+            {isUniverse ? 'Dimensional Portal Engaged' : 'Atmospheric Crossing'}
           </span>
         </div>
 
@@ -101,10 +101,25 @@ export const LetterTransition: React.FC<LetterTransitionProps> = ({
           {destinationTitle}
         </h3>
 
-        <div className="flex items-center justify-center gap-2 mt-2.5 sm:mt-3 pt-2.5 sm:pt-3 border-t border-white/[0.08]">
+        {isUniverse && (
+          <div className="my-2 flex flex-col items-center gap-1.5">
+            <p className="font-mono text-[9.5px] text-[#baa9bc] tracking-wider">
+              https://ating-universe.vercel.app/
+            </p>
+            <a
+              href="https://ating-universe.vercel.app/"
+              target="_parent"
+              className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#df9c53]/20 hover:bg-[#df9c53]/35 text-[#fff4e0] text-[9.5px] font-sans tracking-widest uppercase border border-[#df9c53]/40 transition-colors"
+            >
+              Click if not redirected
+            </a>
+          </div>
+        )}
+
+        <div className="flex items-center justify-center gap-2 mt-2 sm:mt-2.5 pt-2 sm:pt-2.5 border-t border-white/[0.08]">
           <span className="w-1.5 h-1.5 rounded-full bg-[#df9c53] animate-ping" />
           <p className="font-sans text-[9px] sm:text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.22em] text-[#df9c53] font-medium">
-            {destinationSubtitle || (isUniverse ? 'Redirecting to Universe...' : 'Crossing to Destination...')}
+            {destinationSubtitle || (isUniverse ? 'Replacing parent window...' : 'Crossing to Destination...')}
           </p>
         </div>
       </div>

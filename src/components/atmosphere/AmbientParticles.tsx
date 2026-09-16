@@ -22,13 +22,17 @@ interface Particle {
   swayPhase: number;
 }
 
-export const AmbientParticles: React.FC<AmbientParticlesProps> = ({ theme, progress }) => {
+export const AmbientParticles: React.FC<AmbientParticlesProps> = React.memo(({ theme, progress }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const particlesRef = useRef<Particle[]>([]);
   const animFrameRef = useRef<number | null>(null);
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
   const prevProgressRef = useRef(progress);
   const scrollVelocityRef = useRef(0);
   const mouseRef = useRef({ x: 0.5, y: 0.5, targetX: 0.5, targetY: 0.5 });
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
 
   // Initialize minimal, subtle particles when theme changes or on mount
   useEffect(() => {
@@ -97,7 +101,16 @@ export const AmbientParticles: React.FC<AmbientParticlesProps> = ({ theme, progr
 
     window.addEventListener('resize', handleResize);
 
-    const render = () => {
+    let lastTime = 0;
+    const FRAME_INTERVAL = 1000 / 60; // Caps strictly at 60 FPS (prevents overdraw on high-refresh 120Hz/144Hz screens)
+
+    const render = (now: number) => {
+      animFrameRef.current = requestAnimationFrame(render);
+
+      const elapsed = now - lastTime;
+      if (elapsed < FRAME_INTERVAL) return;
+      lastTime = now - (elapsed % FRAME_INTERVAL);
+
       ctx.clearRect(0, 0, width, height);
 
       // Smooth mouse follow
@@ -105,14 +118,16 @@ export const AmbientParticles: React.FC<AmbientParticlesProps> = ({ theme, progr
       mouseRef.current.y += (mouseRef.current.targetY - mouseRef.current.y) * 0.03;
 
       // Scroll delta calculation & gentle dampening
-      const scrollDelta = progress - prevProgressRef.current;
-      prevProgressRef.current = progress;
+      const currentProg = progressRef.current;
+      const scrollDelta = currentProg - prevProgressRef.current;
+      prevProgressRef.current = currentProg;
       scrollVelocityRef.current = scrollVelocityRef.current * 0.88 + scrollDelta * 0.12;
       const scrollBoostY = -scrollVelocityRef.current * 1.5;
 
       const particles = particlesRef.current;
-      const style = theme.particleStyle;
-      const isAugust = theme.isAugust22;
+      const currentTheme = themeRef.current;
+      const style = currentTheme.particleStyle;
+      const isAugust = currentTheme.isAugust22;
 
       // Render minimal particles
       for (let i = 0; i < particles.length; i++) {
@@ -211,7 +226,7 @@ export const AmbientParticles: React.FC<AmbientParticlesProps> = ({ theme, progr
       window.removeEventListener('resize', handleResize);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [theme.particleStyle, theme.isAugust22, progress]);
+  }, [theme.particleStyle, theme.isAugust22]);
 
   return (
     <canvas
@@ -221,5 +236,5 @@ export const AmbientParticles: React.FC<AmbientParticlesProps> = ({ theme, progr
       aria-hidden="true"
     />
   );
-};
+});
 

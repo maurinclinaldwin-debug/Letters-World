@@ -1,13 +1,15 @@
 import React from 'react';
-import { Compass } from 'lucide-react';
 import { TimelineEntry } from '../../types.ts';
 import { TimelineMarker } from './TimelineMarker.tsx';
+import { getTrailPoint, TRAIL_PATH_LENGTH, PATH_D } from '../../utils/trailPath.ts';
+import { useLightPhysics } from '../../hooks/useLightPhysics.ts';
 
 interface TimelineProps {
   entries: TimelineEntry[];
   progress: number;
   focusedEntryId: string | null;
   onSelectEntry: (entry: TimelineEntry) => void;
+  onReturnToUniverse?: () => void;
 }
 
 // Intermediate stepping points etched into the mountain road
@@ -21,127 +23,84 @@ const TRAIL_WAYPOINTS = [
   { p: 0.98, label: 'Dawn Horizon', isMajor: false },
 ];
 
-/**
- * Pure mathematical evaluator for the cubic bezier trail:
- * M 180 680 C 260 620, 320 560, 420 480 C 520 400, 680 340, 840 240 C 960 160, 1080 120, 1180 90
- * Eliminates all DOM path measurement and re-render cycles.
- */
-function getBezierPoint(
-  p0: [number, number],
-  p1: [number, number],
-  p2: [number, number],
-  p3: [number, number],
-  t: number
-) {
-  const oneMinusT = 1 - t;
-  const c0 = oneMinusT * oneMinusT * oneMinusT;
-  const c1 = 3 * oneMinusT * oneMinusT * t;
-  const c2 = 3 * oneMinusT * t * t;
-  const c3 = t * t * t;
-  const x = c0 * p0[0] + c1 * p1[0] + c2 * p2[0] + c3 * p3[0];
-  const y = c0 * p0[1] + c1 * p1[1] + c2 * p2[1] + c3 * p3[1];
-
-  // Derivative for tangent heading angle
-  const dx =
-    3 * oneMinusT * oneMinusT * (p1[0] - p0[0]) +
-    6 * oneMinusT * t * (p2[0] - p1[0]) +
-    3 * t * t * (p3[0] - p2[0]);
-  const dy =
-    3 * oneMinusT * oneMinusT * (p1[1] - p0[1]) +
-    6 * oneMinusT * t * (p2[1] - p1[1]) +
-    3 * t * t * (p3[1] - p2[1]);
-  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-
-  return { x, y, angle };
-}
-
-function getTrailPoint(progress: number) {
-  const p = Math.max(0, Math.min(1, progress));
-  if (p <= 0.35) {
-    const t = p / 0.35;
-    return getBezierPoint([180, 680], [260, 620], [320, 560], [420, 480], t);
-  } else if (p <= 0.75) {
-    const t = (p - 0.35) / 0.4;
-    return getBezierPoint([420, 480], [520, 400], [680, 340], [840, 240], t);
-  } else {
-    const t = (p - 0.75) / 0.25;
-    return getBezierPoint([840, 240], [960, 160], [1080, 120], [1180, 90], t);
-  }
-}
-
-// Pre-computed static coordinates for the waypoints
+// Pre-computed static coordinates for the waypoints using arc-length math
 const STATIC_WAYPOINTS = TRAIL_WAYPOINTS.map((wp) => {
   const pt = getTrailPoint(wp.p);
   return {
     ...wp,
-    x: (pt.x / 1200) * 100,
-    y: (pt.y / 800) * 100,
+    x: pt.x,
+    y: pt.y,
   };
 });
-
-const TRAIL_PATH_LENGTH = 1360;
-const PATH_D = "M 180 680 C 260 620, 320 560, 420 480 C 520 400, 680 340, 840 240 C 960 160, 1080 120, 1180 90";
 
 export const Timeline: React.FC<TimelineProps> = ({
   entries,
   progress,
   focusedEntryId,
   onSelectEntry,
+  onReturnToUniverse,
 }) => {
+  // Smooth physical light simulation with spring inertia, frame-capped at 60 FPS
+  const light = useLightPhysics(progress);
+
   // Fade in timeline subtly as user scrolls past prologue (progress > 0.05)
   const timelineOpacity = Math.max(0, Math.min(1, (progress - 0.05) / 0.12));
 
-  // Compute traveler coordinates deterministically without state or effects
-  const travelerPos = getTrailPoint(progress);
-  const travelerPercentX = (travelerPos.x / 1200) * 100;
-  const travelerPercentY = (travelerPos.y / 800) * 100;
-
-  // Trail stroke offset: reveals progressively as traveler wanders
-  const strokeOffset = Math.max(0, TRAIL_PATH_LENGTH * (1 - Math.min(1, progress * 1.05)));
-
-  // Check if traveler is close to either milestone
-  const near2026 = Math.abs(progress - 0.38) < 0.08;
-  const near2027 = Math.abs(progress - 0.88) < 0.08;
+  // Check if light is close to either milestone
+  const near2026 = Math.abs(light.progress - 0.38) < 0.08;
+  const near2027 = Math.abs(light.progress - 0.88) < 0.08;
   const isNearMilestone = near2026 || near2027;
+  const pt2026 = getTrailPoint(0.38);
+  const pt2027 = getTrailPoint(0.88);
 
   if (timelineOpacity <= 0.01) return null;
 
   return (
     <div
       id="embedded-landscape-timeline"
-      className="absolute inset-0 pointer-events-none transition-opacity duration-700 select-none"
-      style={{ opacity: timelineOpacity }}
+      className="absolute inset-0 pointer-events-none transition-opacity duration-700 select-none will-change-transform"
+      style={{
+        opacity: timelineOpacity,
+        transform: 'translate3d(var(--pan-mid-x, 0px), var(--pan-mid-y, 0px), 0)',
+      }}
     >
-      {/* 1. Organic Landscape Trail SVG (embedded into terrain) */}
+      {/* 1. Organic Landscape Trail SVG with Circle Light Follower strictly on the line */}
       <svg
         viewBox="0 0 1200 800"
         preserveAspectRatio="none"
-        className="w-full h-full absolute inset-0 overflow-visible"
+        className="w-full h-full absolute inset-0 overflow-visible pointer-events-none"
         aria-hidden="true"
       >
         <defs>
-          <linearGradient id="trailGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+          {/* Illuminated trail linear gradient */}
+          <linearGradient id="trailGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#df9c53" stopOpacity="0.6" />
             <stop offset="38%" stopColor="#f5cb98" stopOpacity="0.75" />
             <stop offset="75%" stopColor="#fff2dc" stopOpacity="0.7" />
             <stop offset="100%" stopColor="#ffffff" stopOpacity="0.8" />
           </linearGradient>
 
-          <filter id="trailGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="3.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
+          {/* Forward lighting beam radial gradient cast ahead on the line */}
+          <radialGradient id="forwardBeamGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#fff2dc" stopOpacity="0.5" />
+            <stop offset="50%" stopColor="#df9c53" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#df9c53" stopOpacity="0" />
+          </radialGradient>
 
-          <filter id="travelerAura" x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="6" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
+          {/* Kinetic light aura radial gradient */}
+          <radialGradient id="scoutGlowGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+            <stop offset="30%" stopColor="#f5cb98" stopOpacity="0.6" />
+            <stop offset="70%" stopColor="#df9c53" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="#df9c53" stopOpacity="0" />
+          </radialGradient>
+
+          {/* Directional comet tail gradient */}
+          <linearGradient id="cometTailGrad" x1="100%" y1="0%" x2="0%" y2="0%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
+            <stop offset="35%" stopColor="#f5cb98" stopOpacity="0.7" />
+            <stop offset="100%" stopColor="#df9c53" stopOpacity="0" />
+          </linearGradient>
         </defs>
 
         {/* Ambient faintly etched track on the terrain */}
@@ -153,128 +112,217 @@ export const Timeline: React.FC<TimelineProps> = ({
           strokeDasharray="4 8"
         />
 
-        {/* Lit trail advancing with user's journey */}
+        {/* Glowing under-trail (synchronized with smooth light physics) */}
+        <path
+          d={PATH_D}
+          fill="none"
+          stroke="#df9c53"
+          strokeWidth={5 + light.speed * 4}
+          strokeOpacity={0.25 + light.speed * 0.22}
+          strokeDasharray={TRAIL_PATH_LENGTH}
+          strokeDashoffset={light.strokeOffset}
+          strokeLinecap="round"
+        />
+
+        {/* Lit trail advancing smoothly with physical light */}
         <path
           d={PATH_D}
           fill="none"
           stroke="url(#trailGrad)"
           strokeWidth="2.5"
           strokeDasharray={TRAIL_PATH_LENGTH}
-          strokeDashoffset={strokeOffset}
-          filter="url(#trailGlow)"
-          className="transition-[stroke-dashoffset] duration-150 ease-out"
+          strokeDashoffset={light.strokeOffset}
+          strokeLinecap="round"
         />
+
+        {/* Waymark Stepping Dots directly rendered in SVG on the line */}
+        {STATIC_WAYPOINTS.map((wm, idx) => {
+          const isPassed = light.progress >= wm.p - 0.02;
+          return (
+            <g key={idx} className="transition-opacity duration-500">
+              {isPassed && wm.isMajor && (
+                <circle
+                  cx={wm.x}
+                  cy={wm.y}
+                  r="6"
+                  fill="none"
+                  stroke="#df9c53"
+                  strokeWidth="1"
+                  strokeOpacity="0.6"
+                />
+              )}
+              <circle
+                cx={wm.x}
+                cy={wm.y}
+                r={isPassed ? (wm.isMajor ? 3.5 : 2.5) : 1.8}
+                fill={isPassed ? '#f5cb98' : 'rgba(255,255,255,0.25)'}
+                className="transition-all duration-500"
+              />
+            </g>
+          );
+        })}
 
         {/* Dynamic Light Resonance Connection to Waypoint when traveler arrives */}
         {near2026 && (
           <circle
-            cx="456"
-            cy="496"
+            cx={pt2026.x}
+            cy={pt2026.y}
             r="32"
             fill="none"
             stroke="#df9c53"
             strokeWidth="1.5"
             strokeDasharray="3 3"
             className="animate-spin"
-            style={{ animationDuration: '10s', transformOrigin: '456px 496px' }}
+            style={{ animationDuration: '10s', transformOrigin: `${pt2026.x}px ${pt2026.y}px` }}
           />
         )}
         {near2027 && (
           <circle
-            cx="888"
-            cy="224"
+            cx={pt2027.x}
+            cy={pt2027.y}
             r="32"
             fill="none"
             stroke="#f5cb98"
             strokeWidth="1.5"
             strokeDasharray="3 3"
             className="animate-spin"
-            style={{ animationDuration: '10s', transformOrigin: '888px 224px' }}
+            style={{ animationDuration: '10s', transformOrigin: `${pt2027.x}px ${pt2027.y}px` }}
           />
+        )}
+
+        {/* Forward road illumination pool strictly centered on the line */}
+        {light.progress > 0.04 && (
+          <ellipse
+            cx={light.point.x}
+            cy={light.point.y}
+            rx={28 + light.speed * 24}
+            ry={18 + light.speed * 14}
+            fill="url(#forwardBeamGrad)"
+            opacity={0.65 + light.speed * 0.35}
+            transform={`rotate(${light.point.angle} ${light.point.x} ${light.point.y})`}
+          />
+        )}
+
+        {/* THE CIRCLE LIGHT: Strictly following along the line */}
+        {light.progress > 0.04 && (
+          <g
+            id="traveler-circle-light"
+            transform={`translate(${light.point.x}, ${light.point.y})`}
+            className="will-change-transform"
+          >
+            {/* 1. Photonic Comet Tail pointing strictly backward along road tangent */}
+            {light.tailLength > 1.5 && (
+              <line
+                x1={0}
+                y1={0}
+                x2={-light.tailLength}
+                y2={0}
+                stroke="url(#cometTailGrad)"
+                strokeWidth={3.5 + light.speed * 2}
+                strokeLinecap="round"
+                transform={`rotate(${
+                  light.velocity >= 0 ? light.point.angle : light.point.angle + 180
+                })`}
+                opacity={light.tailOpacity}
+              />
+            )}
+
+            {/* 2. Concentric Kinetic Radial Glow Aura */}
+            <circle
+              r={light.glowRadius}
+              fill="url(#scoutGlowGrad)"
+              opacity={Math.min(0.85, light.intensity * 0.65)}
+            />
+
+            {/* 3. Milestone Resonance Pulse Ring */}
+            {isNearMilestone && (
+              <circle
+                r={20}
+                fill="none"
+                stroke="#df9c53"
+                strokeWidth="1.5"
+                strokeOpacity="0.8"
+                className="animate-ping"
+              />
+            )}
+
+            {/* 4. Outer Ring of the Circle Light */}
+            <circle
+              r={isNearMilestone ? 8 : 6.5}
+              fill={isNearMilestone ? 'rgba(223,156,83,0.45)' : 'rgba(14,16,22,0.65)'}
+              stroke={isNearMilestone ? '#df9c53' : '#f5cb98'}
+              strokeWidth={isNearMilestone ? 2 : 1.5}
+            />
+
+            {/* 5. Center Core Luminous Dot */}
+            <circle
+              r={isNearMilestone ? 4 : 3}
+              fill="#ffffff"
+            />
+
+            {/* 6. Anamorphic Transverse Flare Ray */}
+            <line
+              x1={-(12 + light.speed * 24)}
+              y1={0}
+              x2={12 + light.speed * 24}
+              y2={0}
+              stroke="rgba(255,255,255,0.85)"
+              strokeWidth={1.5}
+              transform={`rotate(${light.point.angle + 90})`}
+              opacity={0.35 + light.speed * 0.65}
+            />
+
+            {/* 7. Subtle Desktop Coordinate Tag directly on the traveler beacon */}
+            {!isNearMilestone && light.progress > 0.1 && light.progress < 0.95 && (
+              <g transform="translate(14, 3)" className="hidden md:block opacity-75">
+                <rect
+                  x="0"
+                  y="-10"
+                  width="86"
+                  height="16"
+                  rx="8"
+                  fill="rgba(10, 12, 16, 0.65)"
+                  stroke="rgba(255, 255, 255, 0.15)"
+                  strokeWidth="0.75"
+                />
+                <text
+                  x="43"
+                  y="1"
+                  textAnchor="middle"
+                  fill="#e5aa6d"
+                  fontSize="7.5"
+                  fontFamily="sans-serif"
+                  letterSpacing="0.1em"
+                  className="uppercase font-semibold"
+                >
+                  Line • {Math.round(light.progress * 100)}%
+                </text>
+              </g>
+            )}
+          </g>
         )}
       </svg>
 
-      {/* 2. Intermediate Waymark Stepping Dots along the Trail */}
-      {STATIC_WAYPOINTS.map((wm, idx) => {
-        const isPassed = progress >= wm.p - 0.02;
-        return (
-          <div
-            key={idx}
-            className="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-500"
-            style={{
-              left: `${wm.x}%`,
-              top: `${wm.y}%`,
-            }}
-          >
-            <span
-              className={`block rounded-full transition-all duration-700 ${
-                isPassed
-                  ? wm.isMajor
-                    ? 'w-2 h-2 bg-[#df9c53] shadow-[0_0_8px_#df9c53] ring-2 ring-[#f5cb98]/40'
-                    : 'w-1.5 h-1.5 bg-[#f5cb98]/80 shadow-[0_0_6px_#f5cb98]'
-                  : 'w-1 h-1 bg-white/20'
-              }`}
-            />
-          </div>
-        );
-      })}
-
-      {/* 3. The Celestial Traveler Scout / Beacon along the Trail */}
-      {progress > 0.04 && (
-        <div
-          id="traveler-celestial-scout"
-          className="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-all duration-100 ease-out z-10"
-          style={{
-            left: `${travelerPercentX}%`,
-            top: `${travelerPercentY}%`,
-          }}
-        >
-          {/* Pulsing Light Halo */}
-          <span
-            className={`absolute rounded-full transition-all duration-300 transform -translate-x-1/2 -translate-y-1/2 left-1/2 top-1/2 ${
-              isNearMilestone
-                ? 'w-16 h-16 bg-[#df9c53]/40 blur-md animate-pulse'
-                : 'w-10 h-10 bg-[#f5cb98]/25 blur-sm'
-            }`}
-          />
-
-          {/* Outer Breathing Ring */}
-          <span
-            className={`relative flex items-center justify-center rounded-full border transition-all duration-300 ${
-              isNearMilestone
-                ? 'w-6 h-6 border-[#df9c53] bg-[#df9c53]/30 shadow-[0_0_16px_rgba(223,156,83,0.8)]'
-                : 'w-5 h-5 border-[#f5cb98]/70 bg-black/40 shadow-[0_0_10px_rgba(245,203,152,0.5)]'
-            }`}
-          >
-            {/* Compass directional needle aligned with road tangent */}
-            <Compass
-              className="w-3 h-3 text-[#fff4e0] transition-transform duration-200"
-              style={{ transform: `rotate(${travelerPos.angle}deg)` }}
-            />
-          </span>
-
-          {/* Ethereal "Wanderer" coordinate chip (subtle, visible on desktop) */}
-          {!isNearMilestone && progress > 0.1 && progress < 0.95 && (
-            <div className="hidden md:flex absolute left-6 top-1/2 -translate-y-1/2 whitespace-nowrap opacity-75 animate-in fade-in duration-300">
-              <span className="px-2 py-0.5 rounded-full backdrop-blur-md bg-black/40 border border-white/10 text-[8px] font-sans tracking-[0.2em] uppercase text-[#e5aa6d]">
-                Wandering • {Math.round(progress * 100)}%
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 4. Embedded Timeline Waypoint Markers */}
+      {/* 2. Embedded Timeline Waypoint Markers (Letters) */}
       {entries.map((entry) => {
-        const dist = Math.abs(progress - entry.progress);
+        const dist = Math.abs(light.progress - entry.progress);
         const revealProgress = Math.max(0, Math.min(1, 1 - dist / 0.22));
         const isActive = dist < 0.16;
         const isFocused = focusedEntryId === entry.id;
 
+        const markerPt = getTrailPoint(entry.progress);
+        const markerEntry: TimelineEntry = {
+          ...entry,
+          pathPercent: {
+            x: (markerPt.x / 1200) * 100,
+            y: (markerPt.y / 800) * 100,
+          },
+        };
+
         return (
           <TimelineMarker
             key={entry.id}
-            entry={entry}
+            entry={markerEntry}
             isActive={isActive}
             isFocused={isFocused}
             revealProgress={revealProgress}

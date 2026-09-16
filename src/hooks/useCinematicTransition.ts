@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { windAudio } from '../utils/audio.ts';
-import { redirectThroughParent } from '../utils/navigation.ts';
+import { replaceParentUrl } from '../utils/navigation.ts';
 
 interface CinematicTransitionOptions {
   onStart?: () => void;
@@ -37,27 +37,31 @@ export function useCinematicTransition(options: CinematicTransitionOptions = {})
       options.onStart();
     }
 
-    // 1. Ambient breeze boost & atmospheric sound
+    // 1. Ambient breeze boost & celestial harmonic chime
     windAudio.boostForDeparture();
 
-    // 2. Glassy celestial portal & light rings shimmer outwards
+    // 2. Immediately trigger parent replacement while user gesture token is active
+    replaceParentUrl(destinationUrl);
+
+    // 3. Expand glassy celestial portal & light rings
     const t1 = window.setTimeout(() => {
       setTransitionPhase('portal');
-    }, 400);
+      replaceParentUrl(destinationUrl);
+    }, 300);
 
     // 3. Motion blur, atmospheric bloom & stars dissolve
     const t2 = window.setTimeout(() => {
       setTransitionPhase('blur');
-    }, 1500);
+    }, 850);
 
-    // 4. Smooth parent redirection
+    // 4. Smooth parent window replacement assertion
     const t3 = window.setTimeout(() => {
       setTransitionPhase('navigate');
       if (options.onComplete) {
         options.onComplete();
       }
-      redirectThroughParent(destinationUrl);
-    }, 2200);
+      replaceParentUrl(destinationUrl);
+    }, 1200);
 
     timeoutIdsRef.current = [t1, t2, t3];
   }, [isTransitioning, options]);

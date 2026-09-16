@@ -22,8 +22,8 @@ export const TIMELINE_ENTRIES: TimelineEntry[] = [
     landscape: 'sunset',
     progress: 0.38,
     pathPercent: {
-      x: 38,
-      y: 62,
+      x: 37,
+      y: 44,
     },
     terrainFeature: 'Wildflower Meadow Slope',
     badge: 'Discovered',
@@ -71,10 +71,10 @@ export const TIMELINE_ENTRIES: TimelineEntry[] = [
     landscape: 'dawn',
     progress: 0.88,
     pathPercent: {
-      x: 74,
-      y: 28,
+      x: 85,
+      y: 78,
     },
-    terrainFeature: 'High Ridge Crest',
+    terrainFeature: 'High Ridge Descent',
     badge: 'Upcoming',
     upcomingMessage: "This part of the road hasn't been written yet. It will open on August 22, 2027 as our first full year unfolds.",
     letterContent: {
