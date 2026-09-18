@@ -190,6 +190,27 @@ export const LetterModal: React.FC<LetterModalProps> = ({
                 </div>
               )}
             </div>
+          ) : content?.body ? (
+            /* Standard Letter Body Presentation */
+            <div className="space-y-4 font-serif text-sm sm:text-base leading-relaxed tracking-wide text-[#e8e2d9]">
+              {content.summary && (
+                <p className="italic text-[#f5cb98] font-medium pb-2 border-b border-white/[0.08]">
+                  {content.summary}
+                </p>
+              )}
+              {content.body.map((paragraph, pIdx) => (
+                <p key={pIdx} className="first-letter:text-2xl first-letter:font-normal first-letter:text-[#f5cb98]">
+                  {paragraph}
+                </p>
+              ))}
+              {content.sealNote && (
+                <div className="pt-4 text-right">
+                  <p className="font-serif italic text-sm text-[#baa9bc]">
+                    {content.sealNote}
+                  </p>
+                </div>
+              )}
+            </div>
           ) : (
             /* Fallback summary display */
             <div className="space-y-4 font-serif text-base">
@@ -203,7 +224,7 @@ export const LetterModal: React.FC<LetterModalProps> = ({
           <div className="flex items-center gap-2 text-[11px] font-sans text-[#baa9bc] tracking-wider text-center sm:text-left">
             <span>
               {isUpcoming
-                ? 'Return on August 22, 2027 to unlock'
+                ? `Return on ${entry.date} to unlock`
                 : 'Discovered in Ating Universe • Letters World'}
             </span>
             {onReturnToUniverse && (

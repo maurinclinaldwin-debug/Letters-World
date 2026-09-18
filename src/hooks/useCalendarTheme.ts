@@ -10,8 +10,8 @@ export function useCalendarTheme() {
   const computeCurrentTheme = useCallback(() => {
     let now = new Date();
     if (overrideAugust22) {
-      // Simulate August 22 of current year
-      now = new Date(now.getFullYear(), 7, 22, now.getHours(), now.getMinutes());
+      // Simulate the 22nd of the current month (Milestone Starlight)
+      now = new Date(now.getFullYear(), now.getMonth(), 22, now.getHours(), now.getMinutes());
     }
 
     if (overridePhase) {

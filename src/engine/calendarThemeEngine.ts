@@ -49,9 +49,11 @@ export function calculateCalendarTheme(currentDate: Date = new Date()): Calendar
     phaseLabel = 'Midnight Starlight';
   }
 
-  // 3. Anniversary & Milestone Sync (August 22)
-  const isAugust22 = month === 7 && dayOfMonth === 22;
+  // 3. Monthly Milestone & Anniversary Sync (Every 22nd of any month)
+  const isMilestone22 = dayOfMonth === 22;
+  const isAugust22 = isMilestone22; // Active on the 22nd of every month
   const isAnniversaryMonth = month === 7;
+  const monthName = currentDate.toLocaleDateString([], { month: 'long' });
 
   // 4. Atmosphere Tokens & Particle Styling
   let skyGradient = 'radial-gradient(ellipse at 70% 30%, rgba(223, 156, 83, 0.12) 0%, transparent 70%)';
@@ -61,8 +63,8 @@ export function calculateCalendarTheme(currentDate: Date = new Date()): Calendar
   let particleStyle: CalendarThemeConfig['particleStyle'] = 'golden_embers';
   let tagline = 'Real-time landscape sync';
 
-  if (isAugust22) {
-    tagline = 'August 22 • Milestone Convergence Resonance';
+  if (isMilestone22) {
+    tagline = `${monthName} 22 • Milestone Starlight Resonance`;
     accentColor = '#fcd34d';
     ambientGlow = 'rgba(252, 211, 77, 0.35)';
     skyGradient = 'radial-gradient(ellipse at 50% 25%, rgba(253, 224, 71, 0.22) 0%, rgba(245, 158, 11, 0.12) 45%, transparent 70%)';
@@ -122,6 +124,7 @@ export function calculateCalendarTheme(currentDate: Date = new Date()): Calendar
     formattedTime,
     formattedDate,
     isAugust22,
+    isMilestone22,
     isAnniversaryMonth,
     skyGradient,
     accentColor,

@@ -94,7 +94,7 @@ export const GlobalMusicPlayer: React.FC = () => {
               )}
             </div>
             <span className="text-[9px] font-sans tracking-[0.2em] text-[#baa9bc] uppercase leading-none mt-1">
-              {!hasInteracted ? 'Tap to play' : isCrossfading ? 'Crossfading' : isPlaying ? 'Playing' : 'Paused'}
+              {isCrossfading ? 'Crossfading' : isPlaying ? 'Playing' : 'Paused'}
             </span>
           </div>
         </button>

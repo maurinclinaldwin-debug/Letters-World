@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { AnimatePresence } from 'motion/react';
 import { TIMELINE_ENTRIES, BACKGROUND_COLLECTION } from '../../data/timeline.ts';
 import { TimelineEntry, LandscapeBackground } from '../../types.ts';
 import { useTimelineProgress } from '../../hooks/useTimelineProgress.ts';
@@ -8,6 +9,7 @@ import { LandscapeStage } from './LandscapeStage.tsx';
 import { CinematicIntro } from './CinematicIntro.tsx';
 import { Timeline } from './Timeline.tsx';
 import { LetterModal } from './LetterModal.tsx';
+import { AnniversaryLetterCard } from './AnniversaryLetterCard.tsx';
 import { UniverseBackButton } from '../navigation/UniverseBackButton.tsx';
 import { UniversePortalReturn } from '../navigation/UniversePortalReturn.tsx';
 import { BackgroundSwitcher } from '../navigation/BackgroundSwitcher.tsx';
@@ -138,6 +140,33 @@ export const LettersWorld: React.FC = () => {
     scrollToProgress(0.38, 2.0);
   }, [scrollToProgress]);
 
+  // Active anniversary letter based on scroll journey progression
+  const [dismissedCardId, setDismissedCardId] = useState<string | null>(null);
+
+  // Auto reset dismissed card when scrolling out of its waypoint zone
+  useEffect(() => {
+    if (progress < 0.2 || (progress > 0.58 && progress < 0.68) || progress > 0.99) {
+      setDismissedCardId(null);
+    }
+  }, [progress]);
+
+  const activeAnniversaryEntry = useMemo(() => {
+    if (isLetterModalOpen || isTransitioning) return null;
+
+    const augustEntry = entries.find((e) => e.id === 'august-22-2026') || entries[0];
+    const septEntry = entries.find((e) => e.id === '1st-year-anniversary') || entries[1];
+
+    if (progress >= 0.24 && progress <= 0.54) {
+      if (dismissedCardId === augustEntry.id) return null;
+      return augustEntry;
+    }
+    if (progress >= 0.72 && progress <= 0.98) {
+      if (dismissedCardId === septEntry.id) return null;
+      return septEntry;
+    }
+    return null;
+  }, [progress, entries, isLetterModalOpen, isTransitioning, dismissedCardId]);
+
   return (
     <div id="letters-world-root" className="relative w-full min-h-screen text-[#e8e4df]">
       {/* 1. Persistent Fixed Viewport Stage (2.5D Film Frame with backgrounds changing on every scroll) */}
@@ -199,6 +228,27 @@ export const LettersWorld: React.FC = () => {
           onReturnToUniverse={handleReturnToUniverse}
         />
 
+        {/* Scroll-based Cinematic Anniversary Letter Cards floating in the lower stage */}
+        <div className="fixed bottom-4 sm:bottom-8 inset-x-3 sm:inset-x-6 z-25 pointer-events-none flex justify-center">
+          <AnimatePresence mode="wait">
+            {activeAnniversaryEntry && (
+              <AnniversaryLetterCard
+                key={activeAnniversaryEntry.id}
+                entry={activeAnniversaryEntry}
+                themeIsMilestone22={theme.isAugust22 || theme.isMilestone22}
+                onOpenLetter={handleSelectEntry}
+                onNavigateToUrl={handleModalNavigateToUrl}
+                onScrollToOtherLetter={(targetProg) => {
+                  setDismissedCardId(null);
+                  scrollToProgress(targetProg, 1.8);
+                }}
+                onDismiss={() => setDismissedCardId(activeAnniversaryEntry.id)}
+                allEntries={entries}
+              />
+            )}
+          </AnimatePresence>
+        </div>
+
         {/* Interactive Letter Modal: Opens upon clicking any circle on the roadmap */}
         <LetterModal
           key={modalEntry?.id || 'none'}
@@ -214,6 +264,7 @@ export const LettersWorld: React.FC = () => {
           phase={transitionPhase}
           destinationTitle={transitionTarget?.title || august2026.title}
           destinationSubtitle={transitionTarget?.subtitle}
+          destinationUrl={transitionTarget?.url}
         />
       </LandscapeStage>
 

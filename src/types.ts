@@ -85,7 +85,8 @@ export interface CalendarThemeConfig {
   phaseLabel: string;
   formattedTime: string;
   formattedDate: string;
-  isAugust22: boolean;
+  isAugust22: boolean; // Retained for backwards compatibility (active whenever day is 22)
+  isMilestone22: boolean; // Active on the 22nd of any month
   isAnniversaryMonth: boolean;
   skyGradient: string;
   accentColor: string;

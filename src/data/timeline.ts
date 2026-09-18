@@ -59,33 +59,46 @@ export const TIMELINE_ENTRIES: TimelineEntry[] = [
     }
   },
   {
-    id: 'august-22-2027',
-    date: 'August 22, 2027',
-    displayYear: '2027',
-    monthDay: 'August 22',
-    title: 'One Year Anniversary',
-    subtitle: 'A destination still ahead.',
-    description: 'Along the high ridge trail toward the dawn horizon.',
-    status: 'upcoming',
-    url: null,
+    id: '1st-year-anniversary',
+    date: 'September 22, 2026',
+    displayYear: '2026',
+    monthDay: 'September 22',
+    title: '1st Year Anniversary',
+    subtitle: 'The Message • An interactive love letter across our first full year.',
+    description: 'Along the high ridge trail under the starlight dawn.',
+    status: 'available',
+    url: 'https://the-message-letter.vercel.app/',
     landscape: 'dawn',
     progress: 0.88,
     pathPercent: {
       x: 85,
       y: 78,
     },
-    terrainFeature: 'High Ridge Descent',
-    badge: 'Upcoming',
-    upcomingMessage: "This part of the road hasn't been written yet. It will open on August 22, 2027 as our first full year unfolds.",
+    terrainFeature: 'High Ridge Crest',
+    badge: 'Anniversary',
     letterContent: {
-      summary: 'A sealed time capsule letter resting at the crest of the mountain ridge, awaiting our one-year milestone.',
+      summary: 'An interactive anniversary love letter celebrating 365 days of walking hand-in-hand together.',
       body: [
-        'To Our Future Selves at the High Ridge Crest:',
-        'When you finally open this parchment on August 22, 2027, 365 days of shared sunrises, quiet conversations, and shared dreams will have passed.',
-        'Remember the promise made on the lower trails: to always choose kindness, to laugh through the unexpected rainstorms, and to keep walking side by side no matter how steep the climb.',
-        'The road ahead is waiting for our footprints.'
+        'To My Love on Our 1st Year Anniversary:',
+        'Three hundred and sixty-five days ago, we began this journey with open hearts and quiet hope. Today, looking back from this high ridge at dawn, every path we wandered and every mountain we climbed has proven that home is wherever I am with you.',
+        'Thank you for twelve months of pure warmth, unspoken understanding, and patient kindness. You are the joy in every morning and the peace at every journey’s end.',
+        'This interactive letter holds our words, our laughter, and the promise of all the horizons still waiting for our footprints.'
       ],
-      sealNote: 'Sealed until August 22, 2027. Time capsule protected by the starlight trail.'
+      perspectives: [
+        {
+          label: 'The Journey',
+          author: 'Our 1st Year',
+          title: 'A Full Year of Us',
+          quote: 'One year down, a lifetime of mountain dawns still waiting for our footsteps.',
+          paragraphs: [
+            'From our very first steps to our 11th monthsary among the meadow wildflowers, and now standing together at our first complete year—every mile with you has been a blessing.',
+            'You turned rainy season roads into quiet sanctuaries, and steep mountain trails into effortless adventures. In your arms, I have found unwavering safety, unconditional acceptance, and endless wonder.',
+            'Happy 1st Year Anniversary, my love. Open this interactive message and step into our celebration.'
+          ],
+          signoff: 'Endlessly yours, today and through every tomorrow.'
+        }
+      ],
+      sealNote: 'Penned for our 1st Year Anniversary • September 22, 2026'
     }
   },
 ];

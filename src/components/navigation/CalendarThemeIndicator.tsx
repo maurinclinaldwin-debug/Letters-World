@@ -236,8 +236,9 @@ export const CalendarThemeIndicator: React.FC<CalendarThemeIndicatorProps> = ({
               {theme.phase === 'midnight' && !theme.isAugust22 && <Check className="w-3 h-3 text-[#df9c53]" />}
             </button>
 
-            {/* Special August 22 Milestone Resonance */}
+            {/* Special Monthly 22nd Milestone Starlight Resonance */}
             <button
+              id="calendar-theme-milestone-starlight-btn"
               onClick={() => {
                 onToggleAugust22(true);
               }}
@@ -249,7 +250,7 @@ export const CalendarThemeIndicator: React.FC<CalendarThemeIndicatorProps> = ({
             >
               <div className="flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5 text-[#fde047]" />
-                <span>August 22 • Milestone Starlight</span>
+                <span>Every 22nd • Milestone Starlight</span>
               </div>
               {theme.isAugust22 && <Check className="w-3 h-3 text-[#fde047]" />}
             </button>

@@ -30,28 +30,48 @@ interface MusicContextType {
 
 const MusicContext = createContext<MusicContextType | null>(null);
 
+// Get safe origin without 'null' or sandbox glitches
+const getSafeOrigin = (): string => {
+  try {
+    if (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin !== 'null') {
+      return window.location.origin;
+    }
+  } catch {
+    // ignore
+  }
+  return '';
+};
+
+// Construct YouTube embed URL with optimal flags for reliable live autoplay & API control
+const buildYouTubeEmbedUrl = (trackId: string): string => {
+  const origin = getSafeOrigin();
+  const originParam = origin ? `&origin=${encodeURIComponent(origin)}&widget_referrer=${encodeURIComponent(origin)}` : '';
+  return `https://www.youtube.com/embed/${trackId}?enablejsapi=1&autoplay=1&mute=1&playsinline=1&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&loop=1&playlist=${trackId}${originParam}`;
+};
+
 export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Select initial random track from the provided YouTube links
+  // Select initial random track from the provided YouTube playlist
   const [initialIndex] = useState<number>(() => Math.floor(Math.random() * MUSIC_PLAYLIST.length));
   const [currentTrackIndex, setCurrentTrackIndex] = useState<number>(initialIndex);
   const [hasInteracted, setHasInteracted] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(true); // default to true for autoplay intent
   const [isMuted, setIsMuted] = useState(false);
   const [isCrossfading, setIsCrossfading] = useState(false);
 
   // Active channel: 'A' or 'B'
   const [activeChannel, setActiveChannel] = useState<'A' | 'B'>('A');
 
-  // Channel A and B states
+  // Channel A and B states (pre-warmed with initial tracks for smooth switching)
+  const nextTrackIndex = (initialIndex + 1) % MUSIC_PLAYLIST.length;
   const [channelA, setChannelA] = useState<MusicChannelState>({
     track: MUSIC_PLAYLIST[initialIndex],
     volume: 100,
-    isPlaying: false,
+    isPlaying: true,
     iframeId: 'yt-channel-a',
   });
 
   const [channelB, setChannelB] = useState<MusicChannelState>({
-    track: null,
+    track: MUSIC_PLAYLIST[nextTrackIndex],
     volume: 0,
     isPlaying: false,
     iframeId: 'yt-channel-b',
@@ -60,16 +80,44 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Crossfade animation reference
   const crossfadeTimerRef = useRef<number | null>(null);
   const iframeRefs = useRef<{ [key: string]: HTMLIFrameElement | null }>({});
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ytPlayersRef = useRef<{ [key: string]: any }>({});
 
-  // Helper to send postMessage command to YouTube iframe
-  const sendCommand = useCallback((channel: 'A' | 'B', func: string, args: unknown[] = []) => {
+  // Helper to send postMessage command to YouTube iframe & invoke native YT.Player if ready
+  const sendCommand = useCallback((channel: 'A' | 'B', func: string, args: unknown = '') => {
     const iframeId = channel === 'A' ? 'yt-channel-a' : 'yt-channel-b';
+
+    // 1. If window.YT.Player is initialized, invoke native method directly
+    const player = ytPlayersRef.current[channel];
+    if (player && typeof player[func] === 'function') {
+      try {
+        if (Array.isArray(args)) {
+          player[func](...args);
+        } else if (args !== '' && args !== undefined) {
+          player[func](args);
+        } else {
+          player[func]();
+        }
+      } catch {
+        // fallback to postMessage
+      }
+    }
+
+    // 2. Direct postMessage to the iframe contentWindow
     const iframe = iframeRefs.current[iframeId];
     if (iframe && iframe.contentWindow) {
-      iframe.contentWindow.postMessage(
-        JSON.stringify({ event: 'command', func, args }),
-        '*'
-      );
+      try {
+        iframe.contentWindow.postMessage(
+          JSON.stringify({
+            event: 'command',
+            func,
+            args: args !== undefined ? args : '',
+          }),
+          '*'
+        );
+      } catch {
+        // ignore
+      }
     }
   }, []);
 
@@ -83,7 +131,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [sendCommand]);
 
-  // Execute smooth crossfade between channels
+  // Execute smooth crossfade between channels without destroying iframes
   const executeCrossfade = useCallback((nextTrack: MusicTrack, nextIndex: number) => {
     if (crossfadeTimerRef.current) {
       clearInterval(crossfadeTimerRef.current);
@@ -96,115 +144,107 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const outgoingChannel = activeChannel;
     const incomingChannel = outgoingChannel === 'A' ? 'B' : 'A';
 
-    // Prepare incoming channel
+    // Prepare incoming channel track
     if (incomingChannel === 'A') {
-      setChannelA({
+      setChannelA((prev) => ({
+        ...prev,
         track: nextTrack,
         volume: 0,
         isPlaying: true,
-        iframeId: 'yt-channel-a',
-      });
+      }));
     } else {
-      setChannelB({
+      setChannelB((prev) => ({
+        ...prev,
         track: nextTrack,
         volume: 0,
         isPlaying: true,
-        iframeId: 'yt-channel-b',
-      });
+      }));
     }
 
     setActiveChannel(incomingChannel);
     setIsPlaying(true);
 
-    // Give iframe 300ms to mount and connect, then begin crossfading
-    setTimeout(() => {
-      sendCommand(incomingChannel, 'unMute');
-      sendCommand(incomingChannel, 'setVolume', [0]);
-      sendCommand(incomingChannel, 'playVideo');
+    // Call loadVideoById on the incoming channel player
+    sendCommand(incomingChannel, 'loadVideoById', nextTrack.id);
+    sendCommand(incomingChannel, 'unMute');
+    sendCommand(incomingChannel, 'setVolume', [0]);
+    sendCommand(incomingChannel, 'playVideo');
 
-      const steps = 25;
-      const durationMs = 2400; // 2.4s smooth crossfade
-      const stepInterval = durationMs / steps;
-      let currentStep = 0;
+    // Smooth crossfade progression
+    const steps = 25;
+    const durationMs = 2400; // 2.4s smooth crossfade
+    const stepInterval = durationMs / steps;
+    let currentStep = 0;
 
-      crossfadeTimerRef.current = window.setInterval(() => {
-        currentStep++;
-        const progress = currentStep / steps; // 0 to 1
+    crossfadeTimerRef.current = window.setInterval(() => {
+      currentStep++;
+      const progress = currentStep / steps; // 0 to 1
 
-        const incomingVol = Math.round(progress * 100);
-        const outgoingVol = Math.round((1 - progress) * 100);
+      const incomingVol = Math.round(progress * 100);
+      const outgoingVol = Math.round((1 - progress) * 100);
 
-        setChannelVolume(incomingChannel, incomingVol);
-        setChannelVolume(outgoingChannel, outgoingVol);
+      setChannelVolume(incomingChannel, incomingVol);
+      setChannelVolume(outgoingChannel, outgoingVol);
 
-        if (currentStep >= steps) {
-          if (crossfadeTimerRef.current) {
-            clearInterval(crossfadeTimerRef.current);
-            crossfadeTimerRef.current = null;
-          }
-          // Pause and silence outgoing channel
-          sendCommand(outgoingChannel, 'pauseVideo');
-          sendCommand(outgoingChannel, 'setVolume', [0]);
-          setIsCrossfading(false);
+      if (currentStep >= steps) {
+        if (crossfadeTimerRef.current) {
+          clearInterval(crossfadeTimerRef.current);
+          crossfadeTimerRef.current = null;
         }
-      }, stepInterval);
-    }, 300);
+        // Pause and silence outgoing channel
+        sendCommand(outgoingChannel, 'pauseVideo');
+        sendCommand(outgoingChannel, 'setVolume', [0]);
+        setIsCrossfading(false);
+      }
+    }, stepInterval);
   }, [activeChannel, sendCommand, setChannelVolume]);
 
-  // First interaction trigger with mobile audio hardware priming & retry cascade
+  // First interaction trigger with mobile audio hardware priming & instant playback activation
   const triggerFirstInteraction = useCallback(() => {
     setHasInteracted(true);
     setIsPlaying(true);
 
-    // 1. Prime Mobile Audio Hardware
+    // 1. Prime Mobile Web Audio Hardware (resumes AudioContext)
     unlockMobileAudioHardware();
 
-    // 2. Immediate playback activation
+    // 2. Unmute and play current active channel
     sendCommand(activeChannel, 'unMute');
     sendCommand(activeChannel, 'setVolume', [100]);
     sendCommand(activeChannel, 'playVideo');
 
-    // 3. Cascading retries for mobile network/iframe loading latency
-    const retryDelays = [150, 400, 800, 1500];
+    // 3. Cascading retries to counter network/iframe buffering latencies
+    const retryDelays = [100, 300, 600, 1200, 2000];
     retryDelays.forEach((delay) => {
       setTimeout(() => {
         sendCommand(activeChannel, 'unMute');
+        sendCommand(activeChannel, 'setVolume', [100]);
         sendCommand(activeChannel, 'playVideo');
       }, delay);
     });
+  }, [activeChannel, sendCommand]);
 
-    // 4. Smooth volume ramp
-    let step = 0;
-    const steps = 12;
-    const timer = window.setInterval(() => {
-      step++;
-      const vol = Math.round((step / steps) * 100);
-      setChannelVolume(activeChannel, vol);
-      if (step >= steps) {
-        clearInterval(timer);
-      }
-    }, 100);
-  }, [activeChannel, sendCommand, setChannelVolume]);
-
-  // Attempt instant autoplay on mount (runs immediately for mobile & desktop)
+  // Attempt instant autoplay on mount with rapid retries
   useEffect(() => {
-    const timer1 = setTimeout(() => {
-      sendCommand('A', 'unMute');
-      sendCommand('A', 'playVideo');
-    }, 500);
-
-    const timer2 = setTimeout(() => {
-      sendCommand('A', 'unMute');
-      sendCommand('A', 'playVideo');
-    }, 1200);
+    const pings = [200, 600, 1200, 2000, 3200];
+    const timers = pings.map((delay) =>
+      setTimeout(() => {
+        // Send listening handshake & attempt play
+        const iframeA = iframeRefs.current['yt-channel-a'];
+        if (iframeA?.contentWindow) {
+          iframeA.contentWindow.postMessage(JSON.stringify({ event: 'listening' }), '*');
+        }
+        sendCommand('A', 'unMute');
+        sendCommand('A', 'setVolume', [100]);
+        sendCommand('A', 'playVideo');
+      }, delay)
+    );
 
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      timers.forEach(clearTimeout);
     };
   }, [sendCommand]);
 
-  // Listen for initial user interaction across all standard mobile and desktop touch points
+  // Listen for initial user interaction across all mobile and desktop touch points to immediately unmute
   useEffect(() => {
     if (hasInteracted) return;
 
@@ -213,7 +253,17 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     const eventOptions = { passive: true };
-    const events = ['touchstart', 'touchend', 'pointerdown', 'pointerup', 'click', 'scroll', 'keydown'];
+    const events = [
+      'touchstart',
+      'touchend',
+      'pointerdown',
+      'pointerup',
+      'click',
+      'scroll',
+      'wheel',
+      'keydown',
+      'mousemove',
+    ];
 
     events.forEach((evt) => {
       window.addEventListener(evt, onUserInteraction, eventOptions);
@@ -228,27 +278,103 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [hasInteracted, triggerFirstInteraction]);
 
-  // Listen for postMessage from YouTube iframe to detect playback status
+  // Initialize official YT.Player if window.YT is available
+  useEffect(() => {
+    const initYT = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const YT = (window as any).YT;
+      if (!YT || !YT.Player) return;
+
+      try {
+        if (!ytPlayersRef.current['A'] && iframeRefs.current['yt-channel-a']) {
+          ytPlayersRef.current['A'] = new YT.Player('yt-channel-a', {
+            events: {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              onReady: (e: any) => {
+                e.target.unMute();
+                e.target.setVolume(100);
+                e.target.playVideo();
+              },
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              onStateChange: (e: any) => {
+                if (e.data === 1) {
+                  setIsPlaying(true);
+                  setHasInteracted(true);
+                }
+              },
+            },
+          });
+        }
+
+        if (!ytPlayersRef.current['B'] && iframeRefs.current['yt-channel-b']) {
+          ytPlayersRef.current['B'] = new YT.Player('yt-channel-b', {
+            events: {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              onReady: (e: any) => {
+                e.target.mute();
+                e.target.setVolume(0);
+              },
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              onStateChange: (e: any) => {
+                if (e.data === 1 && activeChannel === 'B') {
+                  setIsPlaying(true);
+                  setHasInteracted(true);
+                }
+              },
+            },
+          });
+        }
+      } catch {
+        // ignore init error
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((window as any).YT && (window as any).YT.Player) {
+        initYT();
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prevReady = (window as any).onYouTubeIframeAPIReady;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).onYouTubeIframeAPIReady = () => {
+          if (typeof prevReady === 'function') prevReady();
+          initYT();
+        };
+      }
+    }
+  }, [activeChannel]);
+
+  // Listen for postMessage from YouTube iframe to detect playback status and handshake
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       try {
         const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-        if (data && (data.event === 'onStateChange' || data.info?.playerState !== undefined)) {
+        if (!data) return;
+
+        // When YouTube iframe confirms ready
+        if (data.event === 'onReady' || data.event === 'initialDelivery') {
+          sendCommand(activeChannel, 'unMute');
+          sendCommand(activeChannel, 'setVolume', [100]);
+          sendCommand(activeChannel, 'playVideo');
+        }
+
+        // When playback state changes (1 is playing)
+        if (data.event === 'onStateChange' || data.info?.playerState !== undefined) {
           const state = data.info?.playerState ?? data.info;
-          // YT.PlayerState.PLAYING is 1
           if (state === 1) {
             setIsPlaying(true);
             setHasInteracted(true);
           }
         }
       } catch {
-        // ignore non-JSON messages from other extensions or iframes
+        // ignore non-JSON messages
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [activeChannel, sendCommand]);
 
   // Toggle play/pause
   const togglePlay = useCallback(() => {
@@ -263,6 +389,7 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setIsPlaying(false);
     } else {
       sendCommand(activeChannel, 'unMute');
+      sendCommand(activeChannel, 'setVolume', [100]);
       sendCommand(activeChannel, 'playVideo');
       setIsPlaying(true);
     }
@@ -287,7 +414,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     unlockMobileAudioHardware();
     if (!hasInteracted) {
       triggerFirstInteraction();
-      return;
     }
 
     let nextIdx = Math.floor(Math.random() * MUSIC_PLAYLIST.length);
@@ -313,10 +439,6 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const currentTrack = MUSIC_PLAYLIST[currentTrackIndex] || MUSIC_PLAYLIST[0];
 
-  const originParam = typeof window !== 'undefined' && window.location.origin
-    ? `&origin=${encodeURIComponent(window.location.origin)}`
-    : '';
-
   return (
     <MusicContext.Provider
       value={{
@@ -337,40 +459,52 @@ export const MusicProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         triggerFirstInteraction,
       }}
     >
-      {/* Centralized Dual-Channel YouTube Audio Players for Seamless Crossfading & Mobile Autoplay */}
-      <div className="sr-only opacity-0 pointer-events-none w-0 h-0 overflow-hidden" aria-hidden="true">
-        {channelA.track && (
-          <iframe
-            ref={(el) => {
-              iframeRefs.current['yt-channel-a'] = el;
-            }}
-            id="yt-channel-a"
-            key={`channel-a-${channelA.track.id}`}
-            width="200"
-            height="200"
-            src={`${channelA.track.embedUrl}?enablejsapi=1&autoplay=1&playsinline=1&loop=1&playlist=${channelA.track.id}&controls=0&fs=0&modestbranding=1&rel=0&iv_load_policy=3${originParam}`}
-            title="Letters World Soundtrack Channel A"
-            allow="autoplay *; encrypted-media *; accelerometer; gyroscope; picture-in-picture"
-            referrerPolicy="strict-origin-when-cross-origin"
-            tabIndex={-1}
-          />
-        )}
-        {channelB.track && (
-          <iframe
-            ref={(el) => {
-              iframeRefs.current['yt-channel-b'] = el;
-            }}
-            id="yt-channel-b"
-            key={`channel-b-${channelB.track.id}`}
-            width="200"
-            height="200"
-            src={`${channelB.track.embedUrl}?enablejsapi=1&autoplay=1&playsinline=1&loop=1&playlist=${channelB.track.id}&controls=0&fs=0&modestbranding=1&rel=0&iv_load_policy=3${originParam}`}
-            title="Letters World Soundtrack Channel B"
-            allow="autoplay *; encrypted-media *; accelerometer; gyroscope; picture-in-picture"
-            referrerPolicy="strict-origin-when-cross-origin"
-            tabIndex={-1}
-          />
-        )}
+      {/* 
+        Centralized Dual-Channel YouTube Audio Host
+        CRITICAL FOR LIVE SITES: Placed offscreen with explicit 320x240 dimensions.
+        Never use 0x0 or sr-only/display:none, as browsers suspend media timers on zero-sized frames.
+      */}
+      <div
+        id="ambient-youtube-host"
+        style={{
+          position: 'fixed',
+          top: '-9999px',
+          left: '-9999px',
+          width: '320px',
+          height: '240px',
+          opacity: 0.001,
+          pointerEvents: 'none',
+          zIndex: -9999,
+          overflow: 'hidden',
+        }}
+        aria-hidden="true"
+      >
+        <iframe
+          ref={(el) => {
+            iframeRefs.current['yt-channel-a'] = el;
+          }}
+          id="yt-channel-a"
+          width="320"
+          height="240"
+          src={buildYouTubeEmbedUrl(channelA.track?.id || MUSIC_PLAYLIST[0].id)}
+          title="Letters World Soundtrack Channel A"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerPolicy="strict-origin-when-cross-origin"
+          tabIndex={-1}
+        />
+        <iframe
+          ref={(el) => {
+            iframeRefs.current['yt-channel-b'] = el;
+          }}
+          id="yt-channel-b"
+          width="320"
+          height="240"
+          src={buildYouTubeEmbedUrl(channelB.track?.id || MUSIC_PLAYLIST[1].id)}
+          title="Letters World Soundtrack Channel B"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerPolicy="strict-origin-when-cross-origin"
+          tabIndex={-1}
+        />
       </div>
 
       {children}
@@ -385,3 +519,4 @@ export const useMusic = () => {
   }
   return context;
 };
+

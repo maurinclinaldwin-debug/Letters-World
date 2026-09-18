@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { Mail, Lock } from 'lucide-react';
 import { TimelineEntry } from '../../types.ts';
 
@@ -33,12 +34,17 @@ export const TimelineMarker: React.FC<TimelineMarkerProps> = ({
   };
 
   return (
-    <div
-      className="absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 select-none will-change-transform"
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      animate={{
+        opacity,
+        y: (1 - Math.min(1, revealProgress)) * 16,
+      }}
+      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      className="absolute pointer-events-auto select-none will-change-transform"
       style={{
         left: `${entry.pathPercent.x}%`,
         top: `${entry.pathPercent.y}%`,
-        opacity,
         transform: `translate(-50%, -50%) scale(${scale})`,
         zIndex: isProminent ? 25 : 10,
       }}
@@ -122,19 +128,51 @@ export const TimelineMarker: React.FC<TimelineMarkerProps> = ({
           )}
         </div>
 
-        {/* Minimal Date Description below the circle — No Box */}
-        <div className="mt-2.5 whitespace-nowrap pointer-events-none transition-all duration-300">
-          <p
-            className={`font-sans text-[11px] sm:text-xs tracking-[0.22em] uppercase font-semibold transition-all duration-300 drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] ${
+        {/* Scroll-animated Card Badge on the Road */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{
+            opacity: isProminent ? 1 : Math.max(0.2, revealProgress),
+            y: isProminent ? 0 : (1 - Math.min(1, revealProgress)) * 12,
+          }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className={`mt-2 pointer-events-none transition-all duration-300 flex flex-col items-center ${
+            entry.pathPercent.x > 70
+              ? 'sm:-translate-x-8'
+              : entry.pathPercent.x < 30
+              ? 'sm:translate-x-8'
+              : ''
+          }`}
+        >
+          <div
+            className={`px-3 py-1.5 rounded-xl backdrop-blur-xl border transition-all duration-300 flex flex-col items-center text-center shadow-[0_8px_24px_rgba(0,0,0,0.5)] ${
               isAvailable
-                ? 'text-[#f5cb98] group-hover:text-[#fff4e0] group-hover:tracking-[0.26em]'
-                : 'text-[#baa9bc] group-hover:text-[#f7f2ea] group-hover:tracking-[0.26em]'
+                ? isProminent
+                  ? 'bg-[#141822]/90 border-[#df9c53]/60 shadow-[0_0_20px_rgba(223,156,83,0.3)]'
+                  : 'bg-black/60 border-white/[0.12]'
+                : 'bg-black/60 border-white/[0.10]'
             }`}
           >
-            {entry.date}
-          </p>
-        </div>
+            <p
+              className={`font-sans text-[10.5px] sm:text-xs tracking-[0.2em] uppercase font-semibold transition-all duration-300 whitespace-nowrap ${
+                isAvailable ? 'text-[#f5cb98]' : 'text-[#baa9bc]'
+              }`}
+            >
+              {entry.title}
+            </p>
+            <div className="flex items-center gap-1.5 mt-0.5 whitespace-nowrap">
+              <span className="font-sans text-[9px] sm:text-[9.5px] tracking-[0.14em] uppercase text-[#baa9bc]">
+                {entry.date}
+              </span>
+              {isProminent && (
+                <span className="text-[8.5px] font-sans tracking-widest text-[#df9c53] uppercase border-l border-white/20 pl-1.5">
+                  Read
+                </span>
+              )}
+            </div>
+          </div>
+        </motion.div>
       </button>
-    </div>
+    </motion.div>
   );
 };

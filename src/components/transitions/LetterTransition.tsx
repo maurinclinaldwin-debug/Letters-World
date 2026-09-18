@@ -5,16 +5,19 @@ interface LetterTransitionProps {
   phase: 'idle' | 'wind' | 'portal' | 'blur' | 'navigate';
   destinationTitle?: string;
   destinationSubtitle?: string;
+  destinationUrl?: string;
 }
 
 export const LetterTransition: React.FC<LetterTransitionProps> = ({
   phase,
   destinationTitle = 'Destination',
   destinationSubtitle,
+  destinationUrl,
 }) => {
   if (phase === 'idle') return null;
 
   const isUniverse = destinationTitle.toLowerCase().includes('universe');
+  const targetUrl = destinationUrl || (isUniverse ? 'https://ating-universe.vercel.app/' : undefined);
 
   return (
     <div
@@ -101,14 +104,15 @@ export const LetterTransition: React.FC<LetterTransitionProps> = ({
           {destinationTitle}
         </h3>
 
-        {isUniverse && (
-          <div className="my-2 flex flex-col items-center gap-1.5">
-            <p className="font-mono text-[9.5px] text-[#baa9bc] tracking-wider">
-              https://ating-universe.vercel.app/
+        {targetUrl && (
+          <div className="my-2 flex flex-col items-center gap-1.5 pointer-events-auto">
+            <p className="font-mono text-[9.5px] text-[#baa9bc] tracking-wider truncate max-w-[280px]">
+              {targetUrl}
             </p>
             <a
-              href="https://ating-universe.vercel.app/"
+              href={targetUrl}
               target="_parent"
+              rel="noreferrer"
               className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#df9c53]/20 hover:bg-[#df9c53]/35 text-[#fff4e0] text-[9.5px] font-sans tracking-widest uppercase border border-[#df9c53]/40 transition-colors"
             >
               Click if not redirected
